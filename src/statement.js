@@ -1,43 +1,95 @@
+function statement(invoice, plays) {
+  const formattedPerformances = formatPerformances(invoice.performances, plays);
 
-function statement (invoice, plays) {
-    let totalAmount = 0;
-    let volumeCredits = 0;
-    let result = `Statement for ${invoice.customer}\n`;
-    const format = new Intl.NumberFormat("en-US",
-        { style: "currency", currency: "USD",
-            minimumFractionDigits: 2 }).format;
+  const totalAmount = getTotalAmount(formattedPerformances);
+  const totalVolumeCredit = getTotalVolumeCredit(formattedPerformances);
+  const statisticsByPerformance = formattedPerformances.map((_performance) => {
+    return getStatisticsByPerformance(_performance, getAmountByType(_performance.type, _performance.audience))
+  });
 
-    for (let perf of invoice.performances) {
-        const play = plays[perf.playID];
-        let thisAmount = 0;
-        switch (play.type) {
-            case "tragedy":
-                thisAmount = 40000;
-                if (perf.audience > 30) {
-                    thisAmount += 1000 * (perf.audience - 30);
-                }
-                break;
-            case "comedy":
-                thisAmount = 30000;
-                if (perf.audience > 20) {
-                    thisAmount += 10000 + 500 * (perf.audience - 20);
-                }
-                thisAmount += 300 * perf.audience;
-                break;
-            default:
-                throw new Error(`unknown type: ${play.type}`);
-        }
-        // add volume credits
-        volumeCredits += Math.max(perf.audience - 30, 0);
-        // add extra credit for every ten comedy attendees
-        if ("comedy" === play.type) volumeCredits += Math.floor(perf.audience / 5);
-        // print line for this order
-        result += ` ${play.name}: ${format(thisAmount/100)} (${perf.audience} seats)\n`;
-        totalAmount += thisAmount;
-    }
-    result += `Amount owed is ${format(totalAmount/100)}\n`;
-    result += `You earned ${volumeCredits} credits\n`;
-    return result;
+  return printResult(invoice.customer, statisticsByPerformance, totalAmount, totalVolumeCredit);
 }
+
+function formatPerformances(_performances, _plays) {
+  return _performances.map((_performance) => {
+    return {
+      ..._performance,
+      name: _plays[_performance.playID].name,
+      type: _plays[_performance.playID].type,
+    }
+  });
+}
+
+function getTotalAmount(_formattedPerformances) {
+  const amountsByType = _formattedPerformances.map((_performance) => {
+    return getAmountByType(_performance.type, _performance.audience);
+  });
+  return amountsByType.reduce((_prev, _curr) => _prev + _curr, 0);
+}
+
+function getAmountByType(_type, _audience) {
+  let amount = 0;
+  switch (_type) {
+    case "tragedy":
+      amount = 40000;
+      if (_audience > 30) {
+        amount += 1000 * (_audience - 30);
+      }
+      return amount;
+    case "comedy":
+      amount = 30000;
+      if (_audience > 20) {
+        amount += 10000 + 500 * (_audience - 20);
+      }
+      return amount += 300 * _audience;
+    default:
+      throw new Error(`unknown type: ${_type}`);
+  }
+}
+
+function getTotalVolumeCredit(_formattedPerformances) {
+  const volumeCredits = _formattedPerformances.map((_performance) => {
+    return getVolumeCredits(_performance.audience, _performance.type);
+  });
+  return volumeCredits.reduce((_prev, _curr) => _prev + _curr, 0);
+}
+
+function getStatisticsByPerformance(_performanceInfo, _amount) {
+  return ` ${_performanceInfo.name}: ${formatAmount(_amount / 100)} (${_performanceInfo.audience} seats)\n`;
+}
+
+function formatAmount(_amount) {
+  const format = new Intl.NumberFormat("en-US",
+    {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2
+    }).format;
+  return format(_amount);
+}
+
+function getVolumeCredits(_audience, _type) {
+  if (_type !== 'comedy')
+    return Math.max(_audience - 30, 0);
+
+  return Math.max(_audience - 30, 0) + Math.floor(_audience / 5);
+}
+
+function printResult(_customer, _statisticsContent, _totalAmount, _totalVolumeCredit) {
+  return `Statement for ${_customer}\n
+    ${_statisticsContent}\n
+    Amount owed is ${formatAmount(_totalAmount / 100)}\n
+    You earned ${_totalVolumeCredit} credits`;
+}
+
+/*
+* result
+* Statement for ${invoice.customer}
+* ${play.name}: ${format(thisAmount/100)} (${perf.audience} seats)
+* ${play.name}: ${format(thisAmount/100)} (${perf.audience} seats)
+* ${play.name}: ${format(thisAmount/100)} (${perf.audience} seats)
+* Amount owed is ${format(totalAmount/100)}
+* You earned ${volumeCredits} credits
+* */
 
 module.exports = statement;
